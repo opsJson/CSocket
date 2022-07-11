@@ -2,16 +2,16 @@
 #define _CSOCKETS_H_
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
-#ifdef _MSC_VER
-#pragma comment( lib, "ws2_32.lib" )
-#pragma comment( lib, "libssl.lib" )
-#pragma comment( lib, "libcrypto.lib" )
-#endif
-#include <winsock2.h>
-#include <ws2tcpip.h>
+	#ifdef _MSC_VER
+		#pragma comment( lib, "ws2_32.lib" )
+		#pragma comment( lib, "libssl.lib" )
+		#pragma comment( lib, "libcrypto.lib" )
+	#endif
+	#include <winsock2.h>
+	#include <ws2tcpip.h>
 #elif defined(__unix__)
-#define closesocket close
-#include <netdb.h>
+	#define closesocket close
+	#include <netdb.h>
 #endif
 
 #include <stdio.h>
