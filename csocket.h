@@ -22,7 +22,7 @@ int csocket_connect(char* host, char* port) {
 	int sock = -1;
 	struct addrinfo* res;
 
-#if	defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
+#if	defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
 		fprintf(stderr, "ERROR: WSAStartup failed.\n");
@@ -125,7 +125,7 @@ int csocket_listen(char* host, char* port, void (*on_request)(int)) {
 	struct addrinfo* res;
 	struct sockaddr_in addr;
 
-#if	defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
+#if	defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
 		fprintf(stderr, "ERROR: WSAStartup failed.\n");
@@ -185,7 +185,7 @@ int csocket_secure_listen(char* host, char* port, void (*on_request)(SSL*), char
 	SSL_CTX* ctx;
 	SSL* ssl;
 
-#if	defined(WIN32) || defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
+#if	defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 	WSADATA wsa;
 	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
 		fprintf(stderr, "ERROR: WSAStartup failed.\n");
