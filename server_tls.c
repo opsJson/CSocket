@@ -1,6 +1,6 @@
 #include "./csocket.h"
 
-void onRequestSecure(SSL *ssl) {
+bool onRequestSecure(SSL *ssl) {
 	char buffer[2048] = {0};
 
 	csocket_secure_read(ssl, buffer, sizeof(buffer));
@@ -12,6 +12,8 @@ void onRequestSecure(SSL *ssl) {
 		"Content-Length: 5\r\n\r\n"
 		"hello!\r\n"
 		"\r\n");
+	
+	return true;
 }
 
 int main(void) {
