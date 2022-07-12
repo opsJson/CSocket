@@ -1,6 +1,6 @@
 #include "./csocket.h"
 
-void onRequest(int sock) {
+bool onRequest(int sock) {
 	char buffer[2048] = {0};
 
 	csocket_read(sock, buffer, sizeof(buffer));
@@ -12,6 +12,8 @@ void onRequest(int sock) {
 		"Content-Length: 5\r\n\r\n"
 		"hello!\r\n"
 		"\r\n");
+	
+	return true;
 }
 
 int main(void) {
