@@ -9,7 +9,7 @@
 	#endif
 	#include <winsock2.h>
 	#include <ws2tcpip.h>
-#elif defined(__unix__)
+#else
 	#define closesocket close
 	#include <netdb.h>
 #endif
@@ -17,11 +17,12 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
+#include <unistd.h>
 #include <openssl/ssl.h>
 
-int csocket_connect(char* host, char* port) {
+int csocket_connect(char *host, char *port) {
 	int sock = -1;
-	struct addrinfo* res;
+	struct addrinfo *res;
 
 #if	defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 	WSADATA wsa;
@@ -54,8 +55,8 @@ error:
 	return -1;
 }
 
-SSL* csocket_secure_connect(char* host, char* port) {
-	int sock;
+SSL* csocket_secure_connect(char *host, char *port) {
+	int sock, err;
 	SSL_CTX* ctx;
 	SSL* ssl = NULL;
 
@@ -73,57 +74,73 @@ SSL* csocket_secure_connect(char* host, char* port) {
 
 	if ((sock = csocket_connect(host, port)) == -1) {
 		fprintf(stderr, "ERROR: csocket_connect failed.\n");
-		return NULL;
+		goto error;
 	}
 
-	if (SSL_set_fd(ssl, sock) != 1) {
-		fprintf(stderr, "ERROR: SSL_set_fd failed.\n");
-		return NULL;
+	if ((err = SSL_set_fd(ssl, sock)) != 1) {
+		fprintf(stderr, "ERROR: SSL_set_fd failed: %s\n", strerror(err));
+		goto error;
 	}
 
-	if (SSL_connect(ssl) != 1) {
-		fprintf(stderr, "ERROR: SSL_connect failed.\n");
-		return NULL;
+	if ((err = SSL_connect(ssl)) != 1) {
+		fprintf(stderr, "ERROR: SSL_connect failed: %s\n", strerror(err));
+		goto error;
 	}
 
 	return ssl;
+	
+error:
+	
+	SSL_free(ssl);
+	return NULL;
 }
 
-int csocket_write(int sock, char* msg) {
+int csocket_write(int sock, char *msg, int msglen) {
 	int sent;
 
-	while (*msg) {
+	while (msglen) {
 		sent = send(sock, msg, strlen(msg), 0);
 		if (sent == -1) return -1;
 		msg += sent;
+		msglen -= sent;
 	}
 
 	return 0;
 }
 
-int csocket_secure_write(SSL* ssl, char* msg) {
+int csocket_secure_write(SSL *ssl, char *msg, int msglen) {
 	int sent;
 
-	while (*msg) {
-		sent = SSL_write(ssl, msg, strlen(msg));
+	while (msglen) {
+		sent = SSL_write(ssl, msg, msglen);
 		if (sent == -1) return -1;
 		msg += sent;
+		msglen -= sent;
 	}
 
 	return 0;
 }
 
-int csocket_read(int sock, char* buf, int buflen) {
+int csocket_read(int sock, char *buf, int buflen) {
 	return recv(sock, buf, buflen, 0);
 }
 
-int csocket_secure_read(SSL* ssl, char* buf, int buflen) {
+int csocket_secure_read(SSL *ssl, char *buf, int buflen) {
 	return SSL_read(ssl, buf, buflen);
 }
 
-int csocket_listen(char* host, char* port, bool (*on_request)(int)) {
+void csocket_close(int sock) {
+	closesocket(sock);
+}
+
+void csocket_secure_close(SSL *ssl) {
+	SSL_shutdown(ssl);
+	SSL_free(ssl);
+}
+
+int csocket_listen(char *host, char *port, bool (*on_request)(int)) {
 	int sock, client, addrlen;
-	struct addrinfo* res;
+	struct addrinfo *res;
 	struct sockaddr_in addr;
 
 #if	defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
@@ -172,6 +189,8 @@ int csocket_listen(char* host, char* port, bool (*on_request)(int)) {
 				closesocket(client);
 				break;
 			}
+			
+			sleep(1);
 		}
 	}
 
@@ -182,7 +201,7 @@ error:
 	return -1;
 }
 
-int csocket_secure_listen(char* host, char* port, bool (*on_request)(SSL*), char* cert_path, char* key_path) {
+int csocket_secure_listen(char *host, char *port, bool (*on_request)(SSL*), char *cert_path, char *key_path) {
 	int sock, client, addrlen;
 	struct addrinfo* res;
 	struct sockaddr_in addr;
@@ -250,6 +269,8 @@ int csocket_secure_listen(char* host, char* port, bool (*on_request)(SSL*), char
 		else
 			while (1) {
 				if (on_request(ssl)) break;
+				
+				sleep(1);
 			}
 
 		SSL_shutdown(ssl);
