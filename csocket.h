@@ -15,6 +15,7 @@
 #endif
 
 #include <stdio.h>
+#include <stdbool.h>
 #include <string.h>
 #include <openssl/ssl.h>
 
@@ -120,7 +121,7 @@ int csocket_secure_read(SSL* ssl, char* buf, int buflen) {
 	return SSL_read(ssl, buf, buflen);
 }
 
-int csocket_listen(char* host, char* port, void (*on_request)(int)) {
+int csocket_listen(char* host, char* port, bool (*on_request)(int)) {
 	int sock, client, addrlen;
 	struct addrinfo* res;
 	struct sockaddr_in addr;
@@ -166,9 +167,12 @@ int csocket_listen(char* host, char* port, void (*on_request)(int)) {
 
 	while ((client = accept(sock, (struct sockaddr*)&addr, &addrlen)) != -1) {
 
-		on_request(client);
-
-		closesocket(client);
+		while (1) {
+			if (on_request(client)) {
+				closesocket(client);
+				break;
+			}
+		}
 	}
 
 	return 0;
@@ -178,7 +182,7 @@ error:
 	return -1;
 }
 
-int csocket_secure_listen(char* host, char* port, void (*on_request)(SSL*), char* cert_path, char* key_path) {
+int csocket_secure_listen(char* host, char* port, bool (*on_request)(SSL*), char* cert_path, char* key_path) {
 	int sock, client, addrlen;
 	struct addrinfo* res;
 	struct sockaddr_in addr;
@@ -241,10 +245,12 @@ int csocket_secure_listen(char* host, char* port, void (*on_request)(SSL*), char
 		ssl = SSL_new(ctx);
 		SSL_set_fd(ssl, client);
 
-		if (SSL_accept(ssl) == 0)
+		if (SSL_accept(ssl) != 1)
 			fprintf(stderr, "ERROR: SSL_accept failed.\n");
 		else
-			on_request(ssl);
+			while (1) {
+				if (on_request(ssl)) break;
+			}
 
 		SSL_shutdown(ssl);
 		SSL_free(ssl);
@@ -265,4 +271,4 @@ error_addrinfo:
 	return -1;
 }
 
-#endif //_CSOCKETS_H_
+#endif /*_CSOCKETS_H_*/
