@@ -47,5 +47,6 @@ The on_request argument needs to be filled with a callback function, which will 
 
 ### csocket_secure_listen(host, port, on_request, cert_path, key_path);
 Creates a server that listens on host:port. (usually localhost as host)  
-The on_request argument needs to be filled with a callback function, which will be called on each request, passing the client socket as the argument, and returning true to close and finishing the connection, or false, to keep connected.
-...
+The on_request argument needs to be filled with a callback function, which will be called on each request, passing the client socket as the argument, and returning true to close and finishing the connection, or false, to keep connected.  
+The cert_path argument needs to be filled in with the path to the certificate file, a file that contains your server's public key, signed by a CA.  
+The key_path argument needs to be filled in with the path to the private key that generated the public key in your certificate file.
