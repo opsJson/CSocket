@@ -99,7 +99,7 @@ int csocket_write(int sock, char *msg, int msglen) {
 	int sent;
 
 	while (msglen) {
-		sent = send(sock, msg, strlen(msg), 0);
+		sent = send(sock, msg, msglen, 0);
 		if (sent == -1) return -1;
 		msg += sent;
 		msglen -= sent;
