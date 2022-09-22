@@ -58,4 +58,6 @@ void csocket_parse_headers(char *headers, int (*on_header)(char *name, char *val
 void csocket_parse_urlencoded(char *urlencoded, int (*on_urlencoded)(char *name, char *value, void *userdata), void *userdata);
 void csocket_parse_multipart(char *multipart, int (*on_multipart)(char *name, char *filename, char *value, int valuesize, void *userdata), void *userdata);
 
+char *csocket_escape(char *str);
+
 #endif /* _C_SOCKET_H_ */

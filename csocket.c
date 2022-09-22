@@ -417,3 +417,32 @@ void csocket_parse_multipart(
 		i++;
 	}
 }
+
+char *csocket_escape(char *str) {
+	unsigned int i, j, count = 0, length = strlen(str);
+	char *escaped;
+	
+	for (i=0; i<length; i++) {
+		if (str[i] == '<') count += 3;
+		else if (str[i] == '>') count += 3;
+		else if (str[i] == '&') count += 4;
+		else if (str[i] == '\'') count += 4;
+		else if (str[i] == '\"') count += 5;
+		/*TODO: SPECIFIC PART:*/
+		else if (str[i] == '\n') count += 3;
+	}
+	
+	escaped = calloc(1, strlen(str) + count + 1);
+	
+	for (i=0,j=0; i<length; i++) {
+		if (str[i] == '<') memcpy(&escaped[j], "&lt;", sizeof("&lt;")-1), j+=sizeof("&lt;")-1;
+		else if (str[i] == '>') memcpy(&escaped[j], "&gt;", sizeof("&gt;")-1), j+=sizeof("&gt;")-1;
+		else if (str[i] == '&') memcpy(&escaped[j], "&amp;", sizeof("&amp;")-1), j+=sizeof("&amp;")-1;
+		else if (str[i] == '\'') memcpy(&escaped[j], "&#39;", sizeof("&#39;")-1), j+=sizeof("&#39;")-1;
+		else if (str[i] == '\"') memcpy(&escaped[j], "&quot;", sizeof("&quot;")-1), j+=sizeof("&quot;")-1;
+		else if (str[i] == '\n') memcpy(&escaped[j], "<br>", sizeof("<br>")-1), j+=sizeof("<br>")-1;
+		else escaped[j++] = str[i];
+	}
+	
+	return escaped;
+}
