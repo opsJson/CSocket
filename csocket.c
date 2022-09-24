@@ -1,5 +1,9 @@
 #include "csocket.h"
 
+#ifndef CSOCKET_QUEUE_SIZE
+#define CSOCKET_QUEUE_SIZE 32
+#endif
+
 static sem_t csocket_semaphore, csocket_mutex;
 static int csocket_queue[CSOCKET_QUEUE_SIZE];
 static int csocket_queue_start = 0;
@@ -24,6 +28,7 @@ static int csocket_queue_pop() {
 	
 	if (csocket_queue[csocket_queue_start] != 0) {
 		value = csocket_queue[csocket_queue_start];
+		csocket_queue[csocket_queue_start] = 0;
 		csocket_queue_start++;
 		csocket_queue_count--;
 		return value;
