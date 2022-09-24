@@ -127,7 +127,12 @@ int csocket_listen(const char *host, const int port, void (*on_request)(int sock
 	}
 	
 	if (sem_init(&csocket_semaphore, 0, 0) != 0) {
-		fprintf(stderr, "ERROR at sem_init()\n");
+		fprintf(stderr, "ERROR of csocket_semaphore at sem_init()\n");
+		return -1;
+	}
+	
+	if (sem_init(&csocket_mutex, 0, 1) != 0) {
+		fprintf(stderr, "ERROR of csocket_mutex at sem_init()\n");
 		return -1;
 	}
 	
