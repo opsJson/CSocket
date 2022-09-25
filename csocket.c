@@ -278,7 +278,7 @@ void csocket_parse_request(char *request, char **method, char **path, char **hea
 	for (i=0; i<size; i++) {
 		if (request[i] == ' ') {
 			request[i] = 0;
-			if (*path == NULL) *path = request + i + 1;
+			if (path) if (*path == NULL) *path = request + i + 1;
 		}
 		else if (strncmp(request + i - 2, "\r\n", sizeof("\r\n")-1) == 0) break;
 	}

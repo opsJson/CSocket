@@ -21,3 +21,8 @@ lib: csocket.c
 	$(CC) csocket.c $(CFLAGS) -c -o csocket
 	ar rcs csocket.lib csocket
 	rm csocket
+
+lib32: csocket.c
+	$(CC) csocket.c $(CFLAGS) -c -o csocket -m32
+	ar rcs csocket.lib csocket
+	rm csocket
