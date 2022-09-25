@@ -200,7 +200,7 @@ char *csocket_read_all(int sock, unsigned int max) {
 	char *read, *ptr;
 	int ret;
 	
-	read = malloc(max);
+	read = calloc(1, max);
 	ptr = read;
 	
 	do {
@@ -268,7 +268,7 @@ void csocket_body(int sock, char *body) {
 	csocket_body_sized(sock, body, strlen(body));
 }
 
-void csocket_parse_request(char *request, char **method, char **path, char **headers, char **body) {
+int csocket_parse_request(char *request, char **method, char **path, char **headers, char **body) {
 	int i = 0, size = strlen(request);
 	
 	if (path) *path = NULL;
@@ -282,18 +282,22 @@ void csocket_parse_request(char *request, char **method, char **path, char **hea
 		}
 		else if (strncmp(request + i - 2, "\r\n", sizeof("\r\n")-1) == 0) break;
 	}
+	if (i >= size) return 1;
 	
 	if (headers) *headers = request + i;
 	
 	for (i=i; i<size; i++) {
 		if (strncmp(request + i, "\r\n\r\n", sizeof("\r\n\r\n")-1) == 0) break;
 	}
+	if (i >= size) return 1;
 	request[i] = 0;
 	
 	if (body) *body = request + i + (sizeof("\r\n\r\n")-1);
+	
+	return 0;
 }
 
-void csocket_parse_response(char *response, char **statusline, char **headers, char **body) {
+int csocket_parse_response(char *response, char **statusline, char **headers, char **body) {
 	int i = 0, size = strlen(response);
 	
 	if (statusline) *statusline = NULL;
@@ -309,18 +313,22 @@ void csocket_parse_response(char *response, char **statusline, char **headers, c
 			break;
 		}
 	}
+	if (i >= size) return 1;
 	
 	if (headers) *headers = response + i;
 	
 	for (i=i; i<size; i++) {
 		if (strncmp(response + i, "\r\n\r\n", sizeof("\r\n\r\n")-1) == 0) break;
 	}
+	if (i >= size) return 1;
 	response[i] = 0;
 	
 	if (body) *body = response + i + (sizeof("\r\n\r\n")-1);
+	
+	return 0;
 }
 
-void csocket_parse_headers(
+int csocket_parse_headers(
 	char *headers,
 	int (*on_header)(char *name, char *value, void *userdata),
 	void *userdata) {
@@ -337,15 +345,17 @@ void csocket_parse_headers(
 		}
 		else if (strncmp(headers + i, "\r\n", sizeof("\r\n")-1) == 0) {
 			memset(headers + i, 0, 2);
-			if (on_header(name, value, userdata) != 0) return;
+			if (on_header(name, value, userdata) != 0) return 1;
 			name = headers + i + 2;
 		}
 	}
 	
-	if (on_header(name, value, userdata) != 0) return;
+	if (on_header(name, value, userdata) != 0) return 1;
+	
+	return 0;
 }
 
-void csocket_parse_urlencoded(
+int csocket_parse_urlencoded(
 	char *urlencoded,
 	int (*on_urlencoded)(char *name, char *value, void *userdata),
 	void *userdata) {
@@ -362,15 +372,17 @@ void csocket_parse_urlencoded(
 		}
 		else if (strncmp(urlencoded + i, "&", sizeof("=")-1) == 0) {
 			urlencoded[i] = 0;
-			if (on_urlencoded(name, value, userdata)) return;
+			if (on_urlencoded(name, value, userdata)) return 1;
 			name = urlencoded + i + 1;
 		}
 	}
 	
-	if (on_urlencoded(name, value, userdata)) return;
+	if (on_urlencoded(name, value, userdata)) return 1;
+	
+	return 0;
 }
 
-void csocket_parse_multipart(
+int csocket_parse_multipart(
 	char *multipart,
 	int (*on_multipart)(char *name, char *filename, char *value, int valuesize, void *userdata),
 	void *userdata) {
@@ -380,7 +392,7 @@ void csocket_parse_multipart(
 	
 	boundary = multipart;
 	
-	if ((aux = strstr(multipart, "\r\n")) == NULL) return;
+	if ((aux = strstr(multipart, "\r\n")) == NULL) return 1;
 	*aux = 0;
 	boundarysize = strlen(boundary);
 	multipart += boundarysize;
@@ -416,8 +428,8 @@ void csocket_parse_multipart(
 			while (1) {
 				if (strncmp(multipart + i, boundary, boundarysize) == 0) {
 					multipart[i] = 0;
-					if (on_multipart(name, filename, value, multipart + i - value - 2, userdata)) return;
-					if (strncmp(multipart + i + boundarysize, "--", sizeof("--")-1) == 0) return;
+					if (on_multipart(name, filename, value, multipart + i - value - 2, userdata)) return 1;
+					if (strncmp(multipart + i + boundarysize, "--", sizeof("--")-1) == 0) return 1;
 					filename = NULL;
 					break;
 				}
@@ -426,6 +438,8 @@ void csocket_parse_multipart(
 		}
 		i++;
 	}
+	
+	return 0;
 }
 
 char *csocket_escape(char *str) {

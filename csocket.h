@@ -48,11 +48,11 @@ void csocket_header(int sock, char *name, char *value);
 void csocket_body_sized(int sock, char *body, int size);
 void csocket_body(int sock, char *body);
 
-void csocket_parse_request(char *request, char **method, char **path, char **headers, char **body);
-void csocket_parse_response(char *response, char **statusline, char **headers, char **body);
-void csocket_parse_headers(char *headers, int (*on_header)(char *name, char *value, void *userdata), void *userdata);
-void csocket_parse_urlencoded(char *urlencoded, int (*on_urlencoded)(char *name, char *value, void *userdata), void *userdata);
-void csocket_parse_multipart(char *multipart, int (*on_multipart)(char *name, char *filename, char *value, int valuesize, void *userdata), void *userdata);
+int csocket_parse_request(char *request, char **method, char **path, char **headers, char **body);
+int csocket_parse_response(char *response, char **statusline, char **headers, char **body);
+int csocket_parse_headers(char *headers, int (*on_header)(char *name, char *value, void *userdata), void *userdata);
+int csocket_parse_urlencoded(char *urlencoded, int (*on_urlencoded)(char *name, char *value, void *userdata), void *userdata);
+int csocket_parse_multipart(char *multipart, int (*on_multipart)(char *name, char *filename, char *value, int valuesize, void *userdata), void *userdata);
 
 char *csocket_escape(char *str);
 
