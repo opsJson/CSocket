@@ -251,6 +251,7 @@ int csocket_fd(int *socks, int size) {
 	sem_wait(&csocket_mutex);
 	for (i=0; i<coscket_opened_connections && i<size; i++) {
 		if (csocket_queue[i] < 0) socks[i] = -csocket_queue[i];
+		else socks[i] = 0;
 	}
 	sem_post(&csocket_mutex);
 	
