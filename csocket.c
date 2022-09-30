@@ -360,7 +360,7 @@ int csocket_parse_headers(
 	int (*on_header)(char *name, char *value, void *userdata),
 	void *userdata) {
 	
-	int i = 0, size = strlen(headers);
+	int i = 0, size = strlen(headers), ret;
 	char *name, *value;
 	
 	name = headers;
@@ -372,12 +372,12 @@ int csocket_parse_headers(
 		}
 		else if (strncmp(headers + i, "\r\n", sizeof("\r\n")-1) == 0) {
 			memset(headers + i, 0, 2);
-			if (on_header(name, value, userdata) != 0) return 1;
+			if (ret = on_header(name, value, userdata) != 0) return ret;
 			name = headers + i + 2;
 		}
 	}
 	
-	if (on_header(name, value, userdata) != 0) return 1;
+	if (ret = on_header(name, value, userdata) != 0) return ret;
 	
 	return 0;
 }
@@ -387,7 +387,7 @@ int csocket_parse_urlencoded(
 	int (*on_urlencoded)(char *name, char *value, void *userdata),
 	void *userdata) {
 	
-	int i = 0, size = strlen(urlencoded);
+	int i = 0, size = strlen(urlencoded), ret;
 	char *name, *value;
 	
 	name = urlencoded;
@@ -399,12 +399,72 @@ int csocket_parse_urlencoded(
 		}
 		else if (strncmp(urlencoded + i, "&", sizeof("=")-1) == 0) {
 			urlencoded[i] = 0;
-			if (on_urlencoded(name, value, userdata)) return 1;
+			if (ret = on_urlencoded(name, value, userdata)) return ret;
 			name = urlencoded + i + 1;
 		}
 	}
 	
-	if (on_urlencoded(name, value, userdata)) return 1;
+	if (ret = on_urlencoded(name, value, userdata)) return ret;
+	
+	return 0;
+}
+
+int csocket_parse_multipart(
+	char *multipart,
+	int (*on_multipart)(char *name, char *filename, char *value, int valuesize, void *userdata),
+	void *userdata) {
+	
+	int i = 0, boundarysize, ret;
+	char *name = NULL, *filename = NULL, *value = NULL, *boundary, *aux;
+	
+	boundary = multipart;
+	
+	if ((aux = strstr(multipart, "\r\n")) == NULL) return 1;
+	*aux = 0;
+	boundarysize = strlen(boundary);
+	multipart += boundarysize;
+	
+	while (1) {
+		if (strncmp(multipart + i - (sizeof(" name=\"")-1), " name=\"", sizeof(" name=\"")-1) == 0) {
+			name = multipart + i;
+			
+			while (1) {
+				if (strncmp(multipart + i, "\"", sizeof("\"")-1) == 0) {
+					multipart[i] = 0;
+					break;
+				}
+				i++;
+			}
+		}
+		else if (strncmp(multipart + i - (sizeof("filename=\"")-1), "filename=\"", sizeof("filename=\"")-1) == 0) {
+			
+			filename = multipart + i;
+			
+			while (1) {
+				if (strncmp(multipart + i, "\"", sizeof("\"")-1) == 0) {
+					multipart[i] = 0;
+					break;
+				}
+				i++;
+			}
+		}
+		else if (strncmp(multipart + i - (sizeof("\r\n\r\n")-1), "\r\n\r\n", sizeof("\r\n\r\n")-1) == 0) {
+			
+			value = multipart + i;
+			
+			while (1) {
+				if (strncmp(multipart + i, boundary, boundarysize) == 0) {
+					multipart[i] = 0;
+					if (ret = on_multipart(name, filename, value, multipart + i - value - 2, userdata)) return ret;
+					if (strncmp(multipart + i + boundarysize, "--", sizeof("--")-1) == 0) return 1;
+					filename = NULL;
+					break;
+				}
+				i++;
+			}
+		}
+		i++;
+	}
 	
 	return 0;
 }
@@ -510,66 +570,6 @@ void csocket_ws_handshake(int sock, char *Sec_WebSocket_Key) {
 	csocket_header(sock, "Connection", "Upgrade");
 	csocket_header(sock, "Upgrade", "websocket");
 	csocket_body(sock, "");
-}
-
-int csocket_parse_multipart(
-	char *multipart,
-	int (*on_multipart)(char *name, char *filename, char *value, int valuesize, void *userdata),
-	void *userdata) {
-	
-	int i = 0, boundarysize;
-	char *name = NULL, *filename = NULL, *value = NULL, *boundary, *aux;
-	
-	boundary = multipart;
-	
-	if ((aux = strstr(multipart, "\r\n")) == NULL) return 1;
-	*aux = 0;
-	boundarysize = strlen(boundary);
-	multipart += boundarysize;
-	
-	while (1) {
-		if (strncmp(multipart + i - (sizeof(" name=\"")-1), " name=\"", sizeof(" name=\"")-1) == 0) {
-			name = multipart + i;
-			
-			while (1) {
-				if (strncmp(multipart + i, "\"", sizeof("\"")-1) == 0) {
-					multipart[i] = 0;
-					break;
-				}
-				i++;
-			}
-		}
-		else if (strncmp(multipart + i - (sizeof("filename=\"")-1), "filename=\"", sizeof("filename=\"")-1) == 0) {
-			
-			filename = multipart + i;
-			
-			while (1) {
-				if (strncmp(multipart + i, "\"", sizeof("\"")-1) == 0) {
-					multipart[i] = 0;
-					break;
-				}
-				i++;
-			}
-		}
-		else if (strncmp(multipart + i - (sizeof("\r\n\r\n")-1), "\r\n\r\n", sizeof("\r\n\r\n")-1) == 0) {
-			
-			value = multipart + i;
-			
-			while (1) {
-				if (strncmp(multipart + i, boundary, boundarysize) == 0) {
-					multipart[i] = 0;
-					if (on_multipart(name, filename, value, multipart + i - value - 2, userdata)) return 1;
-					if (strncmp(multipart + i + boundarysize, "--", sizeof("--")-1) == 0) return 1;
-					filename = NULL;
-					break;
-				}
-				i++;
-			}
-		}
-		i++;
-	}
-	
-	return 0;
 }
 
 char *csocket_escape(char *str) {
