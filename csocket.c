@@ -236,7 +236,7 @@ int csocket_name(int sock, char **ip, int *port) {
 	socklen_t addrsize = sizeof(addr);
 	
 	if (getpeername(sock, (struct sockaddr*)&addr, &addrsize) != 0) {
-		fprintf(stderr, "ERROR %i at listen();\n", CSOCKET_GET_ERROR());
+		fprintf(stderr, "ERROR %i at getpeername();\n", CSOCKET_GET_ERROR());
 		return -1;
 	}
 	
