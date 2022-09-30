@@ -1,6 +1,10 @@
 #ifndef _C_SOCKET_H_
 #define _C_SOCKET_H_
 
+#ifndef CSOCKET_QUEUE_SIZE
+#define CSOCKET_QUEUE_SIZE 32
+#endif
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,8 +24,8 @@
 	#define CSOCKET_IOCTL(sock, cmd, argp) ioctlsocket(sock, cmd, argp)
 	#define CSOCKET_SLEEP(time) Sleep(time)
 #else
-	#include <sys/types.h>
-    #include <sys/socket.h>
+	#include <sys/types.h> /* addrinfo */
+    #include <sys/socket.h> /* addrinfo */
 	#include <netdb.h> /* addrinfo */
 	#include <errno.h> /* errno */
 	#include <unistd.h> /* close, usleep */
@@ -34,6 +38,7 @@
 	#define CSOCKET_SLEEP(time) usleep(1000 * time)
 #endif
 
+/* SOCKET API */
 int csocket_connect(const char *host, const char *port);
 int csocket_listen(const char *host, const int port, void (*on_request)(int sock));
 int csocket_write(int sock, char *message, int size);
@@ -42,18 +47,27 @@ char *csocket_read_all(int sock, unsigned int max);
 void csocket_close(int sock);
 int csocket_name(int sock, char **ip, int *port);
 
+/* HTTP MAKE API */
 void csocket_begin_request(int sock, char *method, char *path);
 void csocket_begin_response(int sock, char *statusline);
 void csocket_header(int sock, char *name, char *value);
 void csocket_body_sized(int sock, char *body, int size);
 void csocket_body(int sock, char *body);
+int csocket_fd(int *socks, int size);
 
+/* HTTP PARSE API */
 int csocket_parse_request(char *request, char **method, char **path, char **headers, char **body);
 int csocket_parse_response(char *response, char **statusline, char **headers, char **body);
 int csocket_parse_headers(char *headers, int (*on_header)(char *name, char *value, void *userdata), void *userdata);
 int csocket_parse_urlencoded(char *urlencoded, int (*on_urlencoded)(char *name, char *value, void *userdata), void *userdata);
 int csocket_parse_multipart(char *multipart, int (*on_multipart)(char *name, char *filename, char *value, int valuesize, void *userdata), void *userdata);
 
+/* WEBSOCKET API */
+void csocket_ws_handshake(int sock, char *Sec_WebSocket_Key);
+void csocket_ws_write(int sock, char fin, char opcode, char *data, long int data_size, int key);
+int csocket_ws_read(int sock, char *buffer, int size);
+
+/* UTILITIES API */
 char *csocket_escape(char *str);
 
 #endif /* _C_SOCKET_H_ */

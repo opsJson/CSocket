@@ -9,13 +9,16 @@ else
 	endif
 endif
 
-all: server client
+all: server client websocket
 
 server: server.c csocket.c
 	$(CC) server.c csocket.c $(CFLAGS) -o server
 
 client: client.c csocket.c
 	$(CC) client.c csocket.c $(CFLAGS) -o client
+
+websocket: websocket.c csocket.c
+	$(CC) websocket.c csocket.c $(CFLAGS) -o websocket
 
 lib: csocket.c
 	$(CC) csocket.c $(CFLAGS) -c -o csocket

@@ -16,7 +16,6 @@ int on_multipart(char *name, char *filename, char *value, int valuesize, void *u
 	else {
 		printf("MULTIPART: %s: %.*s\n", name, valuesize, value);
 	}
-	
 	return 0;
 }
 

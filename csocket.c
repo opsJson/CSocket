@@ -1,19 +1,30 @@
 #include "csocket.h"
+#include "websocket.h" /* TODO: REMOVE THIS LINE*/
 
-#ifndef CSOCKET_QUEUE_SIZE
-#define CSOCKET_QUEUE_SIZE 32
-#endif
+#define HTONS(n) (((((unsigned short)(n) & 0xFF)) << 8) | (((unsigned short)(n) & 0xFF00) >> 8))
+#define NTOHS(n) (((((unsigned short)(n) & 0xFF)) << 8) | (((unsigned short)(n) & 0xFF00) >> 8))
+
+#define HTONL(n) (((((unsigned long)(n) & 0xFF)) << 24) | \
+                  ((((unsigned long)(n) & 0xFF00)) << 8) | \
+                  ((((unsigned long)(n) & 0xFF0000)) >> 8) | \
+                  ((((unsigned long)(n) & 0xFF000000)) >> 24))
+
+#define NTOHL(n) (((((unsigned long)(n) & 0xFF)) << 24) | \
+                  ((((unsigned long)(n) & 0xFF00)) << 8) | \
+                  ((((unsigned long)(n) & 0xFF0000)) >> 8) | \
+                  ((((unsigned long)(n) & 0xFF000000)) >> 24))
 
 static sem_t csocket_semaphore, csocket_mutex;
 static int csocket_queue[CSOCKET_QUEUE_SIZE];
 static int csocket_queue_start = 0;
 static int csocket_queue_end = 0;
 static int csocket_queue_count = 0;
+static int coscket_opened_connections = 0;
 
 static void csocket_queue_push(int value) {
 	if (csocket_queue_end >= CSOCKET_QUEUE_SIZE) csocket_queue_end = 0;
 	
-	if (csocket_queue[csocket_queue_end] == 0) {
+	if (csocket_queue[csocket_queue_end] <= 0) {
 		csocket_queue[csocket_queue_end] = value;
 		csocket_queue_end++;
 		csocket_queue_count++;
@@ -26,9 +37,9 @@ static int csocket_queue_pop() {
 	
 	if (csocket_queue_start >= CSOCKET_QUEUE_SIZE) csocket_queue_start = 0;
 	
-	if (csocket_queue[csocket_queue_start] != 0) {
+	if (csocket_queue[csocket_queue_start] > 0) {
 		value = csocket_queue[csocket_queue_start];
-		csocket_queue[csocket_queue_start] = 0;
+		csocket_queue[csocket_queue_start] = -value;
 		csocket_queue_start++;
 		csocket_queue_count--;
 		return value;
@@ -47,8 +58,10 @@ static void *csocket_scheduler(void (*on_request)(int)) {
 		sock = csocket_queue_pop();
 		sem_post(&csocket_mutex);
 		
+		coscket_opened_connections++;
 		on_request(sock);
 		csocket_close(sock);
+		coscket_opened_connections--;
 	}
 	
 	return NULL;
@@ -146,6 +159,7 @@ int csocket_listen(const char *host, const int port, void (*on_request)(int sock
 			fprintf(stderr, "ERROR %i at pthread_create()\n", err);
 			return -1;
 		}
+		pthread_detach(thread);
 	}
 	
 	while (1) {
@@ -230,6 +244,19 @@ int csocket_name(int sock, char **ip, int *port) {
 	if (port) *port = ntohs(addr.sin_port);
 	
 	return 0;
+}
+
+int csocket_fd(int *socks, int size) {
+	int i;
+	sem_wait(&csocket_mutex);
+	for (i=0; i<coscket_opened_connections && i<size; i++) {
+		if (csocket_queue[i] < 0) socks[i] = -csocket_queue[i];
+	}
+	sem_post(&csocket_mutex);
+	
+	if (i == coscket_opened_connections) return 0;
+
+	return 1;
 }
 
 void csocket_begin_request(int sock, char *method, char *path) {
@@ -380,6 +407,109 @@ int csocket_parse_urlencoded(
 	if (on_urlencoded(name, value, userdata)) return 1;
 	
 	return 0;
+}
+
+void csocket_ws_write(int sock, char fin, char opcode, char *data, long int data_size, int key) {
+	
+	int i;
+	char byte, length;
+	
+	/* set fin and opcode. ignore reserved values */
+	byte = ((!!fin) << 7) | opcode;
+	csocket_write(sock, &byte, sizeof(char));
+	
+	/* determine length value */
+	if (data_size <= 125) length = data_size;
+	else if (data_size <= 0x7FFF) length = 126;
+	else length = 127;
+	
+	/* set mask and length */
+	byte = ((!!key) << 7) | length;
+	csocket_write(sock, &byte, sizeof(char));	
+	
+	/* set extra length if needed */
+	if (length == 126) {
+		data_size = HTONS((short)data_size);
+		csocket_write(sock, (char*)&data_size, sizeof(short int));
+		data_size = HTONS((short)data_size);
+	}
+	else if (length == 127) {
+		data_size = HTONL(data_size);
+		csocket_write(sock, (char*)&data_size, sizeof(long int));
+		data_size = HTONL(data_size);
+	}
+	
+	/* encode if key */
+	if (!!key) {
+		csocket_write(sock, (char*)&key, sizeof(int));
+		
+		if (data) {
+			for (i=0; i<data_size; i++) {
+				data[i] = data[i] ^ (char)(key >> (8 * (i % 4)));
+			}	
+		}
+	}
+	
+	/* set data */
+	if (data) csocket_write(sock, data, data_size);
+}
+
+int csocket_ws_read(int sock, char *buffer, int size) {
+	long int length;
+	int key, i;
+	
+	/* skip fin and opcode. */
+	csocket_read(sock, buffer, sizeof(char));
+	
+	/* get length and mask */
+	csocket_read(sock, buffer, sizeof(char));
+	length = *buffer & 0x7f;
+	key = *buffer >> 7;
+	
+	/* get extra length if is there */
+	if (length == 126) {
+		csocket_read(sock, (char*)&length, sizeof(short int));
+		length = NTOHS((short)length);
+	}
+	else if (length == 127) {
+		csocket_read(sock, (char*)&length, sizeof(long int));
+		length = NTOHL(length);
+	}
+	
+	if (size < length) return 1;
+	
+	if (!key) {
+		csocket_read(sock, buffer, length);
+		return 0;
+	}
+	
+	csocket_read(sock, (char*)&key, sizeof(int));
+	csocket_read(sock, buffer, length);
+	
+	for (i=0; i<length; i++) {
+		buffer[i] = buffer[i] ^ (char)(key >> (8 * (i % 4)));
+	}
+	
+	buffer[i] = 0;
+	
+	return 0;
+}
+
+void csocket_ws_handshake(int sock, char *Sec_WebSocket_Key) {
+	char temp[128], digest[20];
+	const char *const UUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+	
+	strncpy(temp, Sec_WebSocket_Key, sizeof(temp)-sizeof(UUID)-1);
+	strcat(temp, UUID);
+	sha1digest((unsigned char *)digest, NULL, (unsigned char *)temp, strlen(temp));
+	memset(temp, 0, sizeof(temp));
+	base64_encode((unsigned char *)digest, sizeof(digest), temp);
+	
+	csocket_begin_response(sock, "101 Switching Protocols");
+	csocket_header(sock, "Sec-WebSocket-Accept", temp);
+	csocket_header(sock, "Connection", "Upgrade");
+	csocket_header(sock, "Upgrade", "websocket");
+	csocket_body(sock, "");
 }
 
 int csocket_parse_multipart(
