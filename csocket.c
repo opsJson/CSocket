@@ -517,9 +517,14 @@ void csocket_ws_write(int sock, char fin, char opcode, char *data, long int data
 int csocket_ws_read(int sock, char *buffer, int size) {
 	long int length;
 	int key, i;
+	char opcode;
 	
 	/* skip fin and opcode. */
 	csocket_read(sock, buffer, sizeof(char));
+	opcode = *buffer & 0x7f;
+	if (opcode == 0x8) return 0x8; /* close */
+	if (opcode == 0x9) return 0x9; /* ping */
+	if (opcode == 0xA) return 0xA; /* pong */
 	
 	/* get length and mask */
 	csocket_read(sock, buffer, sizeof(char));
