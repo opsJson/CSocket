@@ -372,12 +372,12 @@ int csocket_parse_headers(
 		}
 		else if (strncmp(headers + i, "\r\n", sizeof("\r\n")-1) == 0) {
 			memset(headers + i, 0, 2);
-			if (ret = on_header(name, value, userdata) != 0) return ret;
+			if ((ret = on_header(name, value, userdata)) != 0) return ret;
 			name = headers + i + 2;
 		}
 	}
 	
-	if (ret = on_header(name, value, userdata) != 0) return ret;
+	if ((ret = on_header(name, value, userdata)) != 0) return ret;
 	
 	return 0;
 }
@@ -399,12 +399,12 @@ int csocket_parse_urlencoded(
 		}
 		else if (strncmp(urlencoded + i, "&", sizeof("=")-1) == 0) {
 			urlencoded[i] = 0;
-			if (ret = on_urlencoded(name, value, userdata)) return ret;
+			if ((ret = on_urlencoded(name, value, userdata))) return ret;
 			name = urlencoded + i + 1;
 		}
 	}
 	
-	if (ret = on_urlencoded(name, value, userdata)) return ret;
+	if ((ret = on_urlencoded(name, value, userdata))) return ret;
 	
 	return 0;
 }
@@ -455,7 +455,7 @@ int csocket_parse_multipart(
 			while (1) {
 				if (strncmp(multipart + i, boundary, boundarysize) == 0) {
 					multipart[i] = 0;
-					if (ret = on_multipart(name, filename, value, multipart + i - value - 2, userdata)) return ret;
+					if ((ret = on_multipart(name, filename, value, multipart + i - value - 2, userdata))) return ret;
 					if (strncmp(multipart + i + boundarysize, "--", sizeof("--")-1) == 0) return 1;
 					filename = NULL;
 					break;
