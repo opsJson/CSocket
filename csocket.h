@@ -1,10 +1,6 @@
 #ifndef _C_SOCKET_H_
 #define _C_SOCKET_H_
 
-#ifndef CSOCKET_QUEUE_SIZE
-#define CSOCKET_QUEUE_SIZE 32
-#endif
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

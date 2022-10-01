@@ -1,6 +1,14 @@
 #include "csocket.h"
 #include "websocket.h" /* TODO: REMOVE THIS LINE*/
 
+#ifndef CSOCKET_QUEUE_SIZE
+#define CSOCKET_QUEUE_SIZE 32
+#endif
+
+#ifndef CSOCKET_LIST_SIZE
+#define CSOCKET_LIST_SIZE 32
+#endif
+
 #define HTONS(n) (((((unsigned short)(n) & 0xFF)) << 8) | (((unsigned short)(n) & 0xFF00) >> 8))
 #define NTOHS(n) (((((unsigned short)(n) & 0xFF)) << 8) | (((unsigned short)(n) & 0xFF00) >> 8))
 
@@ -14,38 +22,64 @@
                   ((((unsigned long)(n) & 0xFF0000)) >> 8) | \
                   ((((unsigned long)(n) & 0xFF000000)) >> 24))
 
-static sem_t csocket_semaphore, csocket_mutex;
-static int csocket_queue[CSOCKET_QUEUE_SIZE];
+static sem_t csocket_semaphore, csocket_mutex, csocket_mutex_csocket_fd;
+static int csocket_list[CSOCKET_LIST_SIZE] = {0};
+static int csocket_list_count = 0;
+static int csocket_queue[CSOCKET_QUEUE_SIZE] = {0};
 static int csocket_queue_start = 0;
 static int csocket_queue_end = 0;
 static int csocket_queue_count = 0;
-static int coscket_opened_connections = 0;
 
 static void csocket_queue_push(int value) {
 	if (csocket_queue_end >= CSOCKET_QUEUE_SIZE) csocket_queue_end = 0;
 	
-	if (csocket_queue[csocket_queue_end] <= 0) {
+	if (csocket_queue[csocket_queue_end] == 0) {
 		csocket_queue[csocket_queue_end] = value;
 		csocket_queue_end++;
 		csocket_queue_count++;
-		sem_post(&csocket_semaphore);
 	}
 }
 
 static int csocket_queue_pop() {
-	int value = -1;
+	int value;
 	
 	if (csocket_queue_start >= CSOCKET_QUEUE_SIZE) csocket_queue_start = 0;
 	
-	if (csocket_queue[csocket_queue_start] > 0) {
+	if (csocket_queue[csocket_queue_start] != 0) {
 		value = csocket_queue[csocket_queue_start];
-		csocket_queue[csocket_queue_start] = -value;
+		csocket_queue[csocket_queue_start] = 0;
 		csocket_queue_start++;
 		csocket_queue_count--;
 		return value;
 	}
 	
-	return value;
+	return -1;
+}
+
+static int csocket_list_insert(int value) {
+	int i;
+	for (i=0; i<CSOCKET_LIST_SIZE; i++) {
+		if (csocket_list[i] == 0) {
+			csocket_list[i] = value;
+			csocket_list_count++;
+			return 1;
+		}
+	}
+	
+	return 0;
+}
+
+static int csocket_list_remove(int value) {
+	int i;
+	for (i=0; i<CSOCKET_LIST_SIZE; i++) {
+		if (csocket_list[i] == value) {
+			csocket_list[i] = 0;
+			csocket_list_count--;
+			return 1;
+		}
+	}
+	
+	return 0;
 }
 
 static void *csocket_scheduler(void (*on_request)(int)) {
@@ -56,12 +90,15 @@ static void *csocket_scheduler(void (*on_request)(int)) {
 		
 		sem_wait(&csocket_mutex);
 		sock = csocket_queue_pop();
+		csocket_list_insert(sock);
 		sem_post(&csocket_mutex);
 		
-		coscket_opened_connections++;
 		on_request(sock);
 		csocket_close(sock);
-		coscket_opened_connections--;
+		
+		sem_wait(&csocket_mutex);
+		csocket_list_remove(sock);
+		sem_post(&csocket_mutex);
 	}
 	
 	return NULL;
@@ -154,6 +191,11 @@ int csocket_listen(const char *host, const int port, void (*on_request)(int sock
 		return -1;
 	}
 	
+	if (sem_init(&csocket_mutex_csocket_fd, 0, 1) != 0) {
+		fprintf(stderr, "ERROR of csocket_mutex at sem_init()\n");
+		return -1;
+	}
+	
 	for (i=0; i<CSOCKET_QUEUE_SIZE; i++) {
 		if ((err = pthread_create(&thread, NULL, (void* (*)(void*))csocket_scheduler, (void*)on_request)) != 0) {
 			fprintf(stderr, "ERROR %i at pthread_create()\n", err);
@@ -165,7 +207,10 @@ int csocket_listen(const char *host, const int port, void (*on_request)(int sock
 	while (1) {
 		client = accept(sock, &addr, &addrsize);
 		
-		if (client != -1) csocket_queue_push(client);
+		if (client != -1) {
+			csocket_queue_push(client);
+			sem_post(&csocket_semaphore);
+		}
 		else fprintf(stderr, "ERROR %i at accept()\n", CSOCKET_GET_ERROR());
 	}
 	
@@ -248,16 +293,14 @@ int csocket_name(int sock, char **ip, int *port) {
 
 int csocket_fd(int *socks, int size) {
 	int i;
-	sem_wait(&csocket_mutex);
-	for (i=0; i<coscket_opened_connections && i<size; i++) {
-		if (csocket_queue[i] < 0) socks[i] = -csocket_queue[i];
+	sem_wait(&csocket_mutex_csocket_fd);
+	for (i=0; i<csocket_list_count && i<size; i++) {
+		if (csocket_list[i]) socks[i] = csocket_list[i];
 		else socks[i] = 0;
 	}
-	sem_post(&csocket_mutex);
+	sem_post(&csocket_mutex_csocket_fd);
 	
-	if (i == coscket_opened_connections) return 0;
-
-	return 1;
+	return i;
 }
 
 void csocket_begin_request(int sock, char *method, char *path) {
