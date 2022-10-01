@@ -18,7 +18,7 @@
                   ((((unsigned long)(n) & 0xFF0000)) >> 8) | \
                   ((((unsigned long)(n) & 0xFF000000)) >> 24))
 
-static sem_t csocket_semaphore, csocket_mutex, csocket_mutex_csocket_fd;
+static sem_t csocket_semaphore, csocket_mutex;
 static int csocket_queue[CSOCKET_QUEUE_SIZE] = {0};
 static int csocket_queue_start = 0;
 static int csocket_queue_end = 0;
@@ -105,7 +105,6 @@ int csocket_connect(const char *host, const char *port) {
 	return sock;
 }
 
-
 int csocket_listen(const char *host, const int port, void (*on_request)(int sock)) {
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)	
 	WSADATA wsa;
@@ -153,11 +152,6 @@ int csocket_listen(const char *host, const int port, void (*on_request)(int sock
 	}
 	
 	if (sem_init(&csocket_mutex, 0, 1) != 0) {
-		fprintf(stderr, "ERROR of csocket_mutex at sem_init()\n");
-		return -1;
-	}
-	
-	if (sem_init(&csocket_mutex_csocket_fd, 0, 1) != 0) {
 		fprintf(stderr, "ERROR of csocket_mutex at sem_init()\n");
 		return -1;
 	}
