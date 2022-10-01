@@ -5,10 +5,6 @@
 #define CSOCKET_QUEUE_SIZE 32
 #endif
 
-#ifndef CSOCKET_LIST_SIZE
-#define CSOCKET_LIST_SIZE 32
-#endif
-
 #define HTONS(n) (((((unsigned short)(n) & 0xFF)) << 8) | (((unsigned short)(n) & 0xFF00) >> 8))
 #define NTOHS(n) (((((unsigned short)(n) & 0xFF)) << 8) | (((unsigned short)(n) & 0xFF00) >> 8))
 
@@ -23,8 +19,6 @@
                   ((((unsigned long)(n) & 0xFF000000)) >> 24))
 
 static sem_t csocket_semaphore, csocket_mutex, csocket_mutex_csocket_fd;
-static int csocket_list[CSOCKET_LIST_SIZE] = {0};
-static int csocket_list_count = 0;
 static int csocket_queue[CSOCKET_QUEUE_SIZE] = {0};
 static int csocket_queue_start = 0;
 static int csocket_queue_end = 0;
@@ -56,32 +50,6 @@ static int csocket_queue_pop() {
 	return -1;
 }
 
-static int csocket_list_insert(int value) {
-	int i;
-	for (i=0; i<CSOCKET_LIST_SIZE; i++) {
-		if (csocket_list[i] == 0) {
-			csocket_list[i] = value;
-			csocket_list_count++;
-			return 1;
-		}
-	}
-	
-	return 0;
-}
-
-static int csocket_list_remove(int value) {
-	int i;
-	for (i=0; i<CSOCKET_LIST_SIZE; i++) {
-		if (csocket_list[i] == value) {
-			csocket_list[i] = 0;
-			csocket_list_count--;
-			return 1;
-		}
-	}
-	
-	return 0;
-}
-
 static void *csocket_scheduler(void (*on_request)(int)) {
 	int sock;
 	
@@ -90,14 +58,12 @@ static void *csocket_scheduler(void (*on_request)(int)) {
 		
 		sem_wait(&csocket_mutex);
 		sock = csocket_queue_pop();
-		csocket_list_insert(sock);
 		sem_post(&csocket_mutex);
 		
 		on_request(sock);
 		csocket_close(sock);
 		
 		sem_wait(&csocket_mutex);
-		csocket_list_remove(sock);
 		sem_post(&csocket_mutex);
 	}
 	
