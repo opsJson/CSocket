@@ -49,7 +49,6 @@ void csocket_begin_response(int sock, char *statusline);
 void csocket_header(int sock, char *name, char *value);
 void csocket_body_sized(int sock, char *body, int size);
 void csocket_body(int sock, char *body);
-int csocket_fd(int *socks, int size);
 
 /* HTTP PARSE API */
 int csocket_parse_request(char *request, char **method, char **path, char **headers, char **body);

@@ -291,18 +291,6 @@ int csocket_name(int sock, char **ip, int *port) {
 	return 0;
 }
 
-int csocket_fd(int *socks, int size) {
-	int i;
-	sem_wait(&csocket_mutex_csocket_fd);
-	for (i=0; i<csocket_list_count && i<size; i++) {
-		if (csocket_list[i]) socks[i] = csocket_list[i];
-		else socks[i] = 0;
-	}
-	sem_post(&csocket_mutex_csocket_fd);
-	
-	return i;
-}
-
 void csocket_begin_request(int sock, char *method, char *path) {
 	csocket_write(sock, method, strlen(method));
 	
