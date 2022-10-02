@@ -62,9 +62,6 @@ static void *csocket_scheduler(void (*on_request)(int)) {
 		
 		on_request(sock);
 		csocket_close(sock);
-		
-		sem_wait(&csocket_mutex);
-		sem_post(&csocket_mutex);
 	}
 	
 	return NULL;
