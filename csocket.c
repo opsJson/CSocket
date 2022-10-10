@@ -98,6 +98,7 @@ int csocket_connect(const char *host, const char *port) {
 	}
 
 	freeaddrinfo(res);
+	srand(time(NULL));
 	
 	return sock;
 }
@@ -549,20 +550,40 @@ int csocket_ws_read(int sock, char *buffer, int size) {
 	return 0;
 }
 
-void csocket_ws_handshake(int sock, char *Sec_WebSocket_Key) {
-	char temp[128], digest[20];
-	const char *const UUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
+void csocket_ws_handshake_as_client(int sock, char *path, char *protocols) {
+	char sec_websocket_key[32];
+	char response[1024];
+	short int nonce = rand();
 	
-	strncpy(temp, Sec_WebSocket_Key, sizeof(temp)-sizeof(UUID)-1);
-	strcat(temp, UUID);
+	if (path == NULL) path = "/";
+	
+	csocket_begin_request(sock, "GET", path);
+	csocket_header(sock, "Upgrade", "websocket");
+	csocket_header(sock, "Connection", "Upgrade");
+	csocket_header(sock, "Sec-WebSocket-Version", "13");
+	
+	base64_encode((unsigned char *)&nonce, sizeof(nonce), sec_websocket_key);
+	csocket_header(sock, "Sec-WebSocket-Key", sec_websocket_key);
+	
+	if (protocols) csocket_header(sock, "Sec-WebSocket-Protocol", protocols);
+	
+	csocket_body(sock, "");
+	
+	csocket_read(sock, response, sizeof(response));
+}
+
+void csocket_ws_handshake_as_server(int sock, char *Sec_WebSocket_Key) {
+	char temp[128], digest[20];
+	
+	snprintf(temp, sizeof(temp)-1, "%s" "258EAFA5-E914-47DA-95CA-C5AB0DC85B11", Sec_WebSocket_Key);
 	sha1digest((unsigned char *)digest, NULL, (unsigned char *)temp, strlen(temp));
 	memset(temp, 0, sizeof(temp));
 	base64_encode((unsigned char *)digest, sizeof(digest), temp);
 	
 	csocket_begin_response(sock, "101 Switching Protocols");
-	csocket_header(sock, "Sec-WebSocket-Accept", temp);
-	csocket_header(sock, "Connection", "Upgrade");
 	csocket_header(sock, "Upgrade", "websocket");
+	csocket_header(sock, "Connection", "Upgrade");
+	csocket_header(sock, "Sec-WebSocket-Accept", temp);
 	csocket_body(sock, "");
 }
 

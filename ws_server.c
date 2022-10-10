@@ -32,7 +32,7 @@ int on_header(char *name, char *value, void *userdata) {
 	int sock = *(int*)userdata;
 	
 	if (strcmp(name, "Sec-WebSocket-Key") == 0) {
-		csocket_ws_handshake(sock, value);
+		csocket_ws_handshake_as_server(sock, value);
 		return 1;
 	}
 	return 0;
@@ -40,7 +40,7 @@ int on_header(char *name, char *value, void *userdata) {
 
 void on_request(int sock) {
 	char buffer[2048], *method, *path, *headers, *body;
-	int i;
+	int i, ret;
 	
 	memset(buffer, 0, sizeof(buffer));
 	csocket_read(sock, buffer, sizeof(buffer)-1);
@@ -52,15 +52,16 @@ void on_request(int sock) {
 	printf("new socket: %i\n", sock);
 	list_insert(sock);
 	
-	while (1) {
+	do {
 		memset(buffer, 0, sizeof(buffer));
-		csocket_ws_read(sock, buffer, sizeof(buffer)-1);
+		ret = csocket_ws_read(sock, buffer, sizeof(buffer)-1);
 		
 		for (i=0; i<list_count; i++) {
-			printf("broadcasting eco to: %i\n", list[i]);
+			printf("broadcasting '%s' to: %i\n", buffer, list[i]);
 			csocket_ws_write(list[i], 1, 0x1, buffer, strlen(buffer), 0);
 		}
-	}
+		
+	} while(ret > 0);
 	
 	list_remove(sock);
 }

@@ -6,6 +6,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <time.h>
 
 #if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
 	#ifdef _MSC_VER
@@ -58,7 +59,8 @@ int csocket_parse_urlencoded(char *urlencoded, int (*on_urlencoded)(char *name, 
 int csocket_parse_multipart(char *multipart, int (*on_multipart)(char *name, char *filename, char *value, int valuesize, void *userdata), void *userdata);
 
 /* WEBSOCKET API */
-void csocket_ws_handshake(int sock, char *Sec_WebSocket_Key);
+void csocket_ws_handshake_as_client(int sock, char *path, char *protocols);
+void csocket_ws_handshake_as_server(int sock, char *Sec_WebSocket_Key);
 void csocket_ws_write(int sock, char fin, char opcode, char *data, long int data_size, int key);
 int csocket_ws_read(int sock, char *buffer, int size);
 
